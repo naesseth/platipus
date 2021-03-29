@@ -355,7 +355,7 @@ def find_index(selected_experiements, all_experiments):
     return qry_index
 
 
-def write_sel_to_csv(data_dict, num_draw):
+def write_sel_to_csv(data_dict, num_draw=1):
     """Find the selected k amine-specific experiments and write them to two csv files
 
     Args:
