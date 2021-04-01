@@ -3,19 +3,20 @@ import time
 import numpy.random as npr
 
 import jax.numpy as jnp
+from jax.scipy.special import logsumexp
 from jax import jit, grad, random
 from jax.experimental import optimizers
 from jax.experimental import stax
 from jax.experimental.stax import Dense, Relu, LogSoftmax
-from utils import dataset_alt
+from utils.dataset_alt import *
 
 def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
     return [(scale * rng.randn(m, n), scale * rng.randn(n)) 
             for m, n, in zip(layer_sizes[:-1], layer_sizes[1:])]
 
-def bernoulli_logpdf(logits, x):
+def bernoulli_logpdf(logits, y):
     """Bernoulli log pdf of data x given logits."""
-    return -jnp.sum(jnp.logaddexp(0., jnp.where(x, -1., 1.) * logits))
+    return -jnp.sum(jnp.logaddexp(0., jnp.where(y, -1., 1.) * logits))
 
 def predict(params, inputs):
     activations = inputs
@@ -37,7 +38,7 @@ def loss(params, data):
 if __name__ == "__main__":
     rng = random.PRNGKey(0)
     
-    layer_sizes = [51, 256, 256, 2]
+    layer_sizes = [51, 256, 256, 1]
     param_scale = 0.1
     step_size = 0.001
     num_epochs = 10
@@ -59,7 +60,7 @@ if __name__ == "__main__":
 
     params = init_random_params(param_scale, layer_sizes)
     
-    for epochs in range(num_epochs):
+    for epoch in range(num_epochs):
         start_time = time.time()
         for amine in amine_list:
             params = meta_update(params,(x_t[amine],y_t[amine]))
