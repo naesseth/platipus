@@ -4,7 +4,7 @@ import numpy.random as npr
 
 import jax.numpy as jnp
 from jax.scipy.special import logsumexp
-from jax import jit, grad, random
+from jax import jit, grad, random, jacfwd, jacrev
 from jax.experimental import optimizers
 from jax.experimental import stax
 from jax.experimental.stax import Dense, Relu, LogSoftmax
@@ -34,6 +34,34 @@ def loss(params, data):
     return bernoulli_logpdf(logits_y, targets)
 
 
+def hessian(f):
+    return jit(jacfwd(jacrev(f)))
+
+def neuglm_loss(params, pre_logits, targets):
+    logits_y = jnp.dot(pre_logits, params)
+    return bernoulli_logpdf(logits_y, targets)
+
+def laplace_approx(params, data):
+    inputs, targets = data
+    #prelogits_y = predict(params[:-1], inputs)
+    activations = inputs
+    for w, b in params[:-1]:
+        outputs = jnp.dot(activations, w) + b
+        activations = jnp.tanh(outputs)
+    
+    prelogits_y = jnp.append(activations, np.ones((activations.shape[0],1)), axis=1)
+    w,b = params[-1]
+    params = jnp.append(w,b)
+    # Compute Taylor approximation
+    inf_vec = grad(neuglm_loss)(params, prelogits_y, targets)
+    prec_mat = -hessian(neuglm_loss)(params, prelogits_y, targets)
+    # Compute posterior approximation
+    prec_mat += jnp.eye(len(inf_vec))
+    mu_vec = jnp.linalg.solve(prec_mat, inf_vec)
+    
+    print(mu_vec)
+    return mu_vec, prec_mat
+    
 
 if __name__ == "__main__":
     rng = random.PRNGKey(0)
@@ -41,7 +69,7 @@ if __name__ == "__main__":
     layer_sizes = [51, 256, 256, 1]
     param_scale = 0.1
     step_size = 0.001
-    num_epochs = 10
+    num_epochs = 5
     
     amine_list, x_t, y_t, x_v, y_v, all_data, all_labels = process_dataset(train_size=10, active_learning_iter=10, 
                                                                            verbose=True, cross_validation=True, full=True,
@@ -76,3 +104,5 @@ if __name__ == "__main__":
         epoch_time = time.time() - start_time
         
         print("Epoch {} in {:0.2f} sec".format(epoch, epoch_time))
+        
+    test = laplace_approx(params, (x_v[amine_list[-1]],y_v[amine_list[-1]]))
